@@ -1,0 +1,21 @@
+services:
+  api:
+    image: ${IMAGE_REGISTRY}/${IMAGE_NAMESPACE}/api:${IMAGE_TAG}
+    build: null
+    restart: unless-stopped
+
+  worker:
+    image: ${IMAGE_REGISTRY}/${IMAGE_NAMESPACE}/worker:${IMAGE_TAG}
+    build: null
+    restart: unless-stopped
+
+  frontend:
+    image: ${IMAGE_REGISTRY}/${IMAGE_NAMESPACE}/frontend:${IMAGE_TAG}
+    build: null
+    restart: unless-stopped
+
+  database:
+    restart: unless-stopped
+
+  redis:
+    restart: unless-stopped

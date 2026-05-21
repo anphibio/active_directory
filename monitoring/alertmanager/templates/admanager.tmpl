@@ -1,0 +1,17 @@
+{{ define "admanager.email.subject" -}}
+[{{ .Status | toUpper }}] Active Directory Manager - {{ .CommonLabels.alertname }}
+{{- end }}
+
+{{ define "admanager.email.html" -}}
+<h2>Active Directory Manager</h2>
+<p><strong>Status:</strong> {{ .Status }}</p>
+<p><strong>Alerta:</strong> {{ .CommonLabels.alertname }}</p>
+<p><strong>Severidade:</strong> {{ .CommonLabels.severity }}</p>
+<p><strong>Ambiente:</strong> {{ .CommonLabels.environment }}</p>
+{{ range .Alerts }}
+<hr>
+<p><strong>Resumo:</strong> {{ .Annotations.summary }}</p>
+<p><strong>Inicio:</strong> {{ .StartsAt }}</p>
+{{ if .EndsAt }}<p><strong>Fim:</strong> {{ .EndsAt }}</p>{{ end }}
+{{ end }}
+{{- end }}

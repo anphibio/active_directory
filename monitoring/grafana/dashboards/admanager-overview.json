@@ -1,0 +1,776 @@
+{
+  "title": "Active Directory Manager",
+  "schemaVersion": 39,
+  "version": 8,
+  "refresh": "30s",
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Uptime",
+      "targets": [
+        {
+          "expr": "admanager_uptime_seconds"
+        }
+      ],
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "HTTP Requests",
+      "targets": [
+        {
+          "expr": "sum(rate(admanager_http_requests_total[5m])) by (status)"
+        }
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 4
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Application Events",
+      "targets": [
+        {
+          "expr": "sum(rate(admanager_events_total[5m])) by (event)"
+        }
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 4
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Worker Uptime",
+      "targets": [
+        {
+          "expr": "admanager_worker_uptime_seconds"
+        }
+      ],
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Worker Jobs",
+      "targets": [
+        {
+          "expr": "increase(admanager_worker_jobs_total[15m])"
+        }
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 12
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Target Availability",
+      "targets": [
+        {
+          "expr": "up{job=~\"admanager-.*\"}"
+        }
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 12
+      }
+    },
+    {
+      "type": "table",
+      "title": "AD Inventory",
+      "targets": [
+        {
+          "expr": "admanager_inventory_objects",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "{{object_type}} / {{status}}"
+        }
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 20
+      },
+      "description": "Contagem de objetos do Active Directory por tipo e status.",
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "countRows": false,
+          "fields": ""
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "object_type"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Tipo"
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "users": {
+                        "text": "Usuários"
+                      }
+                    }
+                  },
+                  {
+                    "type": "value",
+                    "options": {
+                      "groups": {
+                        "text": "Grupos"
+                      }
+                    }
+                  },
+                  {
+                    "type": "value",
+                    "options": {
+                      "computers": {
+                        "text": "Computadores"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "status"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Status"
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "all": {
+                        "text": "Todos"
+                      }
+                    }
+                  },
+                  {
+                    "type": "value",
+                    "options": {
+                      "active": {
+                        "text": "Ativos"
+                      }
+                    }
+                  },
+                  {
+                    "type": "value",
+                    "options": {
+                      "disabled": {
+                        "text": "Desabilitados"
+                      }
+                    }
+                  },
+                  {
+                    "type": "value",
+                    "options": {
+                      "locked": {
+                        "text": "Bloqueados"
+                      }
+                    }
+                  },
+                  {
+                    "type": "value",
+                    "options": {
+                      "inactive": {
+                        "text": "Inativos"
+                      }
+                    }
+                  },
+                  {
+                    "type": "value",
+                    "options": {
+                      "never_logged_on": {
+                        "text": "Nunca fizeram logon"
+                      }
+                    }
+                  },
+                  {
+                    "type": "value",
+                    "options": {
+                      "password_never_expires": {
+                        "text": "Senha nunca expira"
+                      }
+                    }
+                  },
+                  {
+                    "type": "value",
+                    "options": {
+                      "empty": {
+                        "text": "Vazios"
+                      }
+                    }
+                  },
+                  {
+                    "type": "value",
+                    "options": {
+                      "with_members": {
+                        "text": "Com membros"
+                      }
+                    }
+                  },
+                  {
+                    "type": "value",
+                    "options": {
+                      "without_description": {
+                        "text": "Sem descrição"
+                      }
+                    }
+                  },
+                  {
+                    "type": "value",
+                    "options": {
+                      "without_owner": {
+                        "text": "Sem responsável"
+                      }
+                    }
+                  },
+                  {
+                    "type": "value",
+                    "options": {
+                      "servers": {
+                        "text": "Servidores"
+                      }
+                    }
+                  },
+                  {
+                    "type": "value",
+                    "options": {
+                      "workstations": {
+                        "text": "Estações de trabalho"
+                      }
+                    }
+                  },
+                  {
+                    "type": "value",
+                    "options": {
+                      "domain_controllers": {
+                        "text": "Controladores de domínio"
+                      }
+                    }
+                  },
+                  {
+                    "type": "value",
+                    "options": {
+                      "old_machine_password": {
+                        "text": "Senha de máquina antiga"
+                      }
+                    }
+                  },
+                  {
+                    "type": "value",
+                    "options": {
+                      "missing_metadata": {
+                        "text": "Sem metadados"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Value"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Quantidade"
+              },
+              {
+                "id": "unit",
+                "value": "short"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Time"
+            },
+            "properties": [
+              {
+                "id": "custom.hidden",
+                "value": true
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "__name__"
+            },
+            "properties": [
+              {
+                "id": "custom.hidden",
+                "value": true
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "job"
+            },
+            "properties": [
+              {
+                "id": "custom.hidden",
+                "value": true
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "instance"
+            },
+            "properties": [
+              {
+                "id": "custom.hidden",
+                "value": true
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Inventory Snapshot Age",
+      "targets": [
+        {
+          "expr": "time() - admanager_inventory_snapshot_timestamp"
+        }
+      ],
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 20
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Inventory Capped Queries",
+      "targets": [
+        {
+          "expr": "sum(admanager_inventory_query_capped)"
+        }
+      ],
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 20
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Inventory Query Errors",
+      "targets": [
+        {
+          "expr": "sum(admanager_inventory_query_errors)"
+        }
+      ],
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 24
+      }
+    },
+    {
+      "type": "table",
+      "title": "Segmented Inventory",
+      "targets": [
+        {
+          "expr": "admanager_inventory_segment_objects",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "{{object_type}} / {{status}} / {{segment}}"
+        }
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 28
+      },
+      "description": "Contagem de objetos por OU configurada no inventario segmentado.",
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "countRows": false,
+          "fields": ""
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "object_type"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Tipo"
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "users": {
+                        "text": "Usuários"
+                      }
+                    }
+                  },
+                  {
+                    "type": "value",
+                    "options": {
+                      "groups": {
+                        "text": "Grupos"
+                      }
+                    }
+                  },
+                  {
+                    "type": "value",
+                    "options": {
+                      "computers": {
+                        "text": "Computadores"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "segment"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "OU / Segmento"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "status"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Status"
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "all": {
+                        "text": "Todos"
+                      }
+                    }
+                  },
+                  {
+                    "type": "value",
+                    "options": {
+                      "active": {
+                        "text": "Ativos"
+                      }
+                    }
+                  },
+                  {
+                    "type": "value",
+                    "options": {
+                      "disabled": {
+                        "text": "Desabilitados"
+                      }
+                    }
+                  },
+                  {
+                    "type": "value",
+                    "options": {
+                      "locked": {
+                        "text": "Bloqueados"
+                      }
+                    }
+                  },
+                  {
+                    "type": "value",
+                    "options": {
+                      "inactive": {
+                        "text": "Inativos"
+                      }
+                    }
+                  },
+                  {
+                    "type": "value",
+                    "options": {
+                      "never_logged_on": {
+                        "text": "Nunca fizeram logon"
+                      }
+                    }
+                  },
+                  {
+                    "type": "value",
+                    "options": {
+                      "password_never_expires": {
+                        "text": "Senha nunca expira"
+                      }
+                    }
+                  },
+                  {
+                    "type": "value",
+                    "options": {
+                      "empty": {
+                        "text": "Vazios"
+                      }
+                    }
+                  },
+                  {
+                    "type": "value",
+                    "options": {
+                      "with_members": {
+                        "text": "Com membros"
+                      }
+                    }
+                  },
+                  {
+                    "type": "value",
+                    "options": {
+                      "without_description": {
+                        "text": "Sem descrição"
+                      }
+                    }
+                  },
+                  {
+                    "type": "value",
+                    "options": {
+                      "without_owner": {
+                        "text": "Sem responsável"
+                      }
+                    }
+                  },
+                  {
+                    "type": "value",
+                    "options": {
+                      "servers": {
+                        "text": "Servidores"
+                      }
+                    }
+                  },
+                  {
+                    "type": "value",
+                    "options": {
+                      "workstations": {
+                        "text": "Estações de trabalho"
+                      }
+                    }
+                  },
+                  {
+                    "type": "value",
+                    "options": {
+                      "domain_controllers": {
+                        "text": "Controladores de domínio"
+                      }
+                    }
+                  },
+                  {
+                    "type": "value",
+                    "options": {
+                      "old_machine_password": {
+                        "text": "Senha de máquina antiga"
+                      }
+                    }
+                  },
+                  {
+                    "type": "value",
+                    "options": {
+                      "missing_metadata": {
+                        "text": "Sem metadados"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Value"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Quantidade"
+              },
+              {
+                "id": "unit",
+                "value": "short"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Time"
+            },
+            "properties": [
+              {
+                "id": "custom.hidden",
+                "value": true
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "__name__"
+            },
+            "properties": [
+              {
+                "id": "custom.hidden",
+                "value": true
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "job"
+            },
+            "properties": [
+              {
+                "id": "custom.hidden",
+                "value": true
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "instance"
+            },
+            "properties": [
+              {
+                "id": "custom.hidden",
+                "value": true
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Inventory Delta",
+      "targets": [
+        {
+          "expr": "admanager_inventory_delta_objects"
+        }
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 28
+      }
+    }
+  ]
+}

@@ -1,0 +1,110 @@
+groups:
+  - name: admanager
+    rules:
+      - alert: AdManagerApiDown
+        expr: up{job="admanager-api"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          environment: admanager
+        annotations:
+          summary: Active Directory Manager API is unavailable
+
+      - alert: AdManagerWorkerDown
+        expr: up{job="admanager-worker"} == 0
+        for: 2m
+        labels:
+          severity: warning
+          environment: admanager
+        annotations:
+          summary: Active Directory Manager worker metrics are unavailable
+
+      - alert: AdManagerHighHttp5xx
+        expr: sum(rate(admanager_http_requests_total{status=~"5.."}[5m])) > 0
+        for: 5m
+        labels:
+          severity: warning
+          environment: admanager
+        annotations:
+          summary: Active Directory Manager returning HTTP 5xx
+
+      - alert: AdManagerAuditPersistFailure
+        expr: increase(admanager_events_total{event="audit_persist_failed"}[10m]) > 0
+        for: 1m
+        labels:
+          severity: critical
+          environment: admanager
+        annotations:
+          summary: Audit persistence failed
+
+      - alert: AdManagerWorkerJobFailures
+        expr: increase(admanager_worker_jobs_total{status="error"}[15m]) > 0
+        for: 1m
+        labels:
+          severity: warning
+          environment: admanager
+        annotations:
+          summary: Worker job failure observed
+
+      - alert: AdManagerInventorySnapshotStale
+        expr: time() - admanager_inventory_snapshot_timestamp > 93600
+        for: 30m
+        labels:
+          severity: warning
+          environment: admanager
+        annotations:
+          summary: AD inventory snapshot is older than 26 hours
+
+      - alert: AdManagerInventoryQueryCapped
+        expr: sum(admanager_inventory_query_capped) > 0
+        for: 15m
+        labels:
+          severity: info
+          environment: admanager
+        annotations:
+          summary: AD inventory query reached the configured limit
+
+      - alert: AdManagerInventoryQueryErrors
+        expr: sum(admanager_inventory_query_errors) > 0
+        for: 5m
+        labels:
+          severity: warning
+          environment: admanager
+        annotations:
+          summary: AD inventory query failed
+
+      - alert: AdManagerInventorySegmentQueryErrors
+        expr: sum(admanager_inventory_segment_query_errors) > 0
+        for: 5m
+        labels:
+          severity: warning
+          environment: admanager
+        annotations:
+          summary: AD segmented inventory query failed
+
+      - alert: AdManagerInventoryAbnormalVariation
+        expr: max(abs(admanager_inventory_delta_objects)) > 50
+        for: 10m
+        labels:
+          severity: info
+          environment: admanager
+        annotations:
+          summary: AD inventory changed more than expected between snapshots
+
+      - alert: AdManagerLdapFailures
+        expr: increase(admanager_events_total{event="ad_connection_test"}[15m]) == 0
+        for: 30m
+        labels:
+          severity: info
+          environment: admanager
+        annotations:
+          summary: No AD connection test event observed recently
+
+      - alert: AdManagerSensitiveOperations
+        expr: increase(admanager_events_total{event=~".*_write_operation"}[10m]) > 0
+        for: 1m
+        labels:
+          severity: info
+          environment: admanager
+        annotations:
+          summary: Sensitive write operation executed or simulated

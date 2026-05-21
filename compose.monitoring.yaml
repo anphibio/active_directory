@@ -1,0 +1,9 @@
+services:
+  prometheus:
+    profiles: []
+
+  alertmanager:
+    profiles: []
+
+  grafana:
+    profiles: []
