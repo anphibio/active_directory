@@ -339,20 +339,9 @@ function exportReportPdf(payload) {
   };
 }
 
-function cnFromDn(value) {
-  if (!value) return "";
-  const match = String(value).match(/CN=([^,]+)/i);
-  return match ? match[1] : String(value);
-}
-
 function rolesText(roles) {
   if (!Array.isArray(roles) || !roles.length) return "";
   return roles.map((role) => labelFor("roles", role)).join(", ");
-}
-
-function groupsText(groups) {
-  if (!Array.isArray(groups) || !groups.length) return "";
-  return groups.map(cnFromDn).join(", ");
 }
 
 const userActionLogEvents = ["user_write_operation", "computer_write_operation", "group_write_operation"];
@@ -436,7 +425,7 @@ function actionLabel(event, operation) {
 
 function operatorMessage(error) {
   if (error?.status === 401) return "Usuario ou senha invalidos, ou sessao expirada.";
-  if (error?.status === 403) return "Perfil sem permissao para esta operacao.";
+  if (error?.status === 403) return error.message || "Perfil sem permissao para esta operacao.";
   if (error?.status === 404) return error.message || "Recurso nao encontrado.";
   if (error?.status >= 500) return "Servico indisponivel. Verifique API, banco, worker ou AD.";
   if (error?.message?.includes("Failed to fetch")) {
@@ -1350,6 +1339,10 @@ function DirectoryView({ type, token, setMessage }) {
   const [limit, setLimit] = useState(100);
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [userSuggestions, setUserSuggestions] = useState([]);
+  const [userSuggestionsOpen, setUserSuggestionsOpen] = useState(false);
+  const [userSearchLoading, setUserSearchLoading] = useState(false);
+  const [userSearchSelected, setUserSearchSelected] = useState(false);
 
   const columns = {
     users: [
@@ -1387,10 +1380,58 @@ function DirectoryView({ type, token, setMessage }) {
     setMachinePasswordDays(90);
     setLimit(100);
     setRows([]);
+    setUserSuggestions([]);
+    setUserSuggestionsOpen(false);
+    setUserSearchSelected(false);
   }, [type]);
 
-  async function load() {
+  useEffect(() => {
     const normalizedQuery = query.trim();
+    if (type !== "users" || !token || userSearchSelected || normalizedQuery.length < 2) {
+      setUserSuggestions([]);
+      setUserSearchLoading(false);
+      return undefined;
+    }
+
+    let canceled = false;
+    const timer = window.setTimeout(async () => {
+      setUserSearchLoading(true);
+      try {
+        const params = buildQuery({
+          status: "all",
+          query: normalizedQuery,
+          limit: 8,
+        });
+        const payload = await api.getJson(`/users?${params}`);
+        if (!canceled) {
+          setUserSuggestions(payload.items || []);
+          setUserSuggestionsOpen(true);
+        }
+      } catch {
+        if (!canceled) {
+          setUserSuggestions([]);
+        }
+      } finally {
+        if (!canceled) {
+          setUserSearchLoading(false);
+        }
+      }
+    }, 350);
+
+    return () => {
+      canceled = true;
+      window.clearTimeout(timer);
+    };
+  }, [api, query, token, type, userSearchSelected]);
+
+  function updateDirectoryQuery(value) {
+    setQuery(value);
+    setUserSearchSelected(false);
+    setUserSuggestionsOpen(type === "users" && value.trim().length >= 2);
+  }
+
+  async function load(queryOverride = query) {
+    const normalizedQuery = queryOverride.trim();
     if (normalizedQuery.length === 1) {
       setMessage({ type: "error", text: "Use pelo menos 2 caracteres na busca." });
       return;
@@ -1416,6 +1457,15 @@ function DirectoryView({ type, token, setMessage }) {
     } finally {
       setLoading(false);
     }
+  }
+
+  function selectDirectoryUser(user) {
+    const identifier = targetIdentifier("users", user);
+    setQuery(identifier);
+    setUserSearchSelected(true);
+    setUserSuggestions([]);
+    setUserSuggestionsOpen(false);
+    load(identifier);
   }
 
   return (
@@ -1444,9 +1494,44 @@ function DirectoryView({ type, token, setMessage }) {
         </label>
         <label className="wide">
           Busca
-          <div className="searchbox">
-            <Search size={18} />
-            <input value={query} onChange={(event) => setQuery(event.target.value)} />
+          <div className={type === "users" ? "target-picker" : ""}>
+            <div className={type === "users" ? "searchbox target-search" : "searchbox"}>
+              <Search size={18} />
+              <input
+                autoComplete={type === "users" ? "off" : undefined}
+                value={query}
+                onBlur={
+                  type === "users"
+                    ? () => window.setTimeout(() => setUserSuggestionsOpen(false), 120)
+                    : undefined
+                }
+                onChange={(event) => updateDirectoryQuery(event.target.value)}
+                onFocus={
+                  type === "users"
+                    ? () => setUserSuggestionsOpen(query.trim().length >= 2 && !userSearchSelected)
+                    : undefined
+                }
+                placeholder={type === "users" ? "digite parte do nome, login ou email" : undefined}
+              />
+            </div>
+            {type === "users" && userSuggestionsOpen && (
+              <div className="target-suggestions">
+                {userSearchLoading && <div className="target-suggestion muted">Buscando...</div>}
+                {!userSearchLoading &&
+                  userSuggestions.map((user) => {
+                    const identifier = targetIdentifier("users", user);
+                    return (
+                      <button key={identifier} type="button" onMouseDown={() => selectDirectoryUser(user)}>
+                        <strong>{targetTitle("users", user)}</strong>
+                        <span>{targetSubtitle("users", user) || identifier}</span>
+                      </button>
+                    );
+                  })}
+                {!userSearchLoading && !userSuggestions.length && (
+                  <div className="target-suggestion muted">Nenhum usuario encontrado</div>
+                )}
+              </div>
+            )}
           </div>
         </label>
         <label className="wide">
@@ -1857,18 +1942,18 @@ function LogsView({ token, setMessage }) {
       occurred_at: row.occurred_at,
       operator: row.operator || payload.operator || payload.username || "",
       roles: rolesText(payload.roles),
-      groups: groupsText(payload.authorization_groups),
       action: actionLabel(row.event, payload.operation),
       target:
-        row.target ||
-        payload.target ||
         payload.sam_account_name ||
+        payload.target ||
         payload.identifier ||
+        row.target ||
         payload.group_dn ||
         payload.user_dn ||
         payload.distinguished_name ||
         "",
       origin: payload.origin || payload.client_host || "",
+      reason: payload.reason || "",
       raw_event: row.event,
     };
   });
@@ -1925,11 +2010,11 @@ function LogsView({ token, setMessage }) {
             <tr>
               <th>Data/hora</th>
               <th>Usuario AD</th>
+              <th>Origem</th>
               <th>Perfil</th>
-              <th>Grupos de autorizacao</th>
               <th>Acao</th>
               <th>Alvo</th>
-              <th>Origem</th>
+              <th>Justificativa</th>
             </tr>
           </thead>
           <tbody>
@@ -1937,11 +2022,11 @@ function LogsView({ token, setMessage }) {
               <tr key={row.id}>
                 <td>{displayValue(row.occurred_at)}</td>
                 <td>{row.operator}</td>
+                <td>{row.origin}</td>
                 <td>{row.roles}</td>
-                <td className="clip-cell" title={row.groups}>{row.groups}</td>
                 <td>{row.action}</td>
                 <td className="clip-cell" title={row.target}>{row.target}</td>
-                <td>{row.origin}</td>
+                <td className="clip-cell" title={row.reason}>{row.reason}</td>
               </tr>
             ))}
             {!normalizedRows.length && (
@@ -1994,6 +2079,18 @@ const operationCatalog = {
       impact: "Carrega a configuracao atual e permite simular nova data de expiracao da conta.",
       severity: "high",
     },
+    {
+      id: "add-group",
+      label: "Adicionar usuario a grupo",
+      impact: "Adiciona o usuario selecionado como membro de um grupo carregado.",
+      severity: "high",
+    },
+    {
+      id: "remove-group",
+      label: "Remover usuario de grupo",
+      impact: "Remove o usuario selecionado de um grupo carregado.",
+      severity: "high",
+    },
   ],
   computers: [
     {
@@ -2041,17 +2138,30 @@ function targetSubtitle(type, item) {
   return [item.dns_hostname, item.operating_system].filter(Boolean).join(" · ");
 }
 
-function OperationSummary({ targetType, operation, target, reason, metadata }) {
+function isGroupMembershipOperation(operation) {
+  return ["add-group", "remove-group"].includes(operation);
+}
+
+function OperationSummary({
+  targetType,
+  operation,
+  target,
+  reason,
+  metadata,
+  executionMode,
+  selectedGroup,
+}) {
   const selected = operationCatalog[targetType].find((item) => item.id === operation);
   const metadataChanges = Object.entries(metadata).filter(([, value]) => value.trim());
+  const isRealExecution = executionMode === "execute";
 
   return (
-    <div className="operation-summary">
+    <div className={`operation-summary ${isRealExecution ? "real-execution" : ""}`}>
       <div className="panel-title">
-        <Shield size={18} />
-        <h3>Resumo da simulacao</h3>
-        <StatusPill tone={selected?.severity === "critical" ? "warn" : "neutral"}>
-          {selected?.severity || "normal"}
+        {isRealExecution ? <AlertTriangle size={18} /> : <Shield size={18} />}
+        <h3>{isRealExecution ? "Resumo da execucao no AD" : "Resumo da simulacao"}</h3>
+        <StatusPill tone={isRealExecution || selected?.severity === "critical" ? "warn" : "neutral"}>
+          {isRealExecution ? "alteracao real" : selected?.severity || "normal"}
         </StatusPill>
       </div>
       <dl>
@@ -2069,10 +2179,22 @@ function OperationSummary({ targetType, operation, target, reason, metadata }) {
         </div>
         <div>
           <dt>Modo</dt>
-          <dd>Simulacao</dd>
+          <dd>{isRealExecution ? "Executar no AD" : "Simulacao"}</dd>
         </div>
+        {isGroupMembershipOperation(operation) && (
+          <div>
+            <dt>Grupo</dt>
+            <dd>{selectedGroup?.common_name || selectedGroup?.sam_account_name || "pendente"}</dd>
+          </div>
+        )}
       </dl>
       <p>{selected?.impact}</p>
+      {isRealExecution && (
+        <div className="real-execution-warning">
+          Esta acao sera enviada com alteracao real para o Active Directory. Confirme o alvo, a acao
+          e a justificativa antes de executar.
+        </div>
+      )}
       {metadataChanges.length > 0 && (
         <div className="change-list">
           {metadataChanges.map(([key, value]) => (
@@ -2121,6 +2243,7 @@ function DirectoryStateCard({ title, state }) {
 
 function OperationResult({ result }) {
   if (!result) return null;
+  const isGroupOperation = Boolean(result.group);
   return (
     <div className="operation-result">
       <div className="result-banner">
@@ -2133,10 +2256,34 @@ function OperationResult({ result }) {
           </span>
         </div>
       </div>
-      <div className="state-grid">
-        <DirectoryStateCard title="Antes" state={result.before} />
-        <DirectoryStateCard title="Depois" state={result.after} />
-      </div>
+      {isGroupOperation ? (
+        <div className="state-card">
+          <h3>Grupo</h3>
+          <dl>
+            <div>
+              <dt>Grupo</dt>
+              <dd>{result.group.common_name || result.group.sam_account_name}</dd>
+            </div>
+            <div>
+              <dt>Usuario</dt>
+              <dd>{result.sam_account_name}</dd>
+            </div>
+            <div>
+              <dt>Grupo protegido</dt>
+              <dd>{result.protected_group ? "Sim" : "Nao"}</dd>
+            </div>
+            <div>
+              <dt>DN do grupo</dt>
+              <dd>{result.group.distinguished_name}</dd>
+            </div>
+          </dl>
+        </div>
+      ) : (
+        <div className="state-grid">
+          <DirectoryStateCard title="Antes" state={result.before} />
+          <DirectoryStateCard title="Depois" state={result.after} />
+        </div>
+      )}
     </div>
   );
 }
@@ -2146,14 +2293,22 @@ function OperationsView({ token, setMessage }) {
   const [targetType, setTargetType] = useState("users");
   const [target, setTarget] = useState("");
   const [operation, setOperation] = useState("unlock");
+  const [executionMode, setExecutionMode] = useState("simulate");
   const [reason, setReason] = useState("");
-  const [confirmDryRun, setConfirmDryRun] = useState(false);
+  const [confirmOperation, setConfirmOperation] = useState(false);
   const [newPassword, setNewPassword] = useState("");
   const [forceChangeAtNextLogon, setForceChangeAtNextLogon] = useState(true);
   const [accountExpirationLoaded, setAccountExpirationLoaded] = useState(false);
   const [currentAccountExpiration, setCurrentAccountExpiration] = useState(null);
   const [accountNeverExpires, setAccountNeverExpires] = useState(true);
   const [accountExpirationDate, setAccountExpirationDate] = useState("");
+  const [groupQuery, setGroupQuery] = useState("");
+  const [selectedGroup, setSelectedGroup] = useState(null);
+  const [groupLoaded, setGroupLoaded] = useState(false);
+  const [groupSuggestions, setGroupSuggestions] = useState([]);
+  const [groupSearchOpen, setGroupSearchOpen] = useState(false);
+  const [groupSearchLoading, setGroupSearchLoading] = useState(false);
+  const [confirmGroupMembership, setConfirmGroupMembership] = useState(false);
   const [metadata, setMetadata] = useState({ description: "", location: "", managed_by: "" });
   const [result, setResult] = useState(null);
   const [targetSuggestions, setTargetSuggestions] = useState([]);
@@ -2163,20 +2318,25 @@ function OperationsView({ token, setMessage }) {
 
   const operations = operationCatalog[targetType];
   const selectedOperation = operations.find((item) => item.id === operation);
+  const isRealExecution = executionMode === "execute";
   const metadataReady =
     operation !== "metadata" || Object.values(metadata).some((value) => value.trim().length > 0);
   const passwordReady = operation !== "reset-password" || newPassword.length >= 8;
   const accountExpirationReady =
     operation !== "account-expiration" ||
     (accountExpirationLoaded && (accountNeverExpires || accountExpirationDate));
+  const groupMembershipReady = !isGroupMembershipOperation(operation) || (groupLoaded && selectedGroup);
+  const groupConfirmationReady = !isGroupMembershipOperation(operation) || confirmGroupMembership;
   const canSubmit =
     Boolean(token) &&
     target.trim().length > 0 &&
     reason.trim().length >= 8 &&
-    confirmDryRun &&
+    confirmOperation &&
     metadataReady &&
     passwordReady &&
-    accountExpirationReady;
+    accountExpirationReady &&
+    groupMembershipReady &&
+    groupConfirmationReady;
 
   function resetAccountExpirationState() {
     setAccountExpirationLoaded(false);
@@ -2185,16 +2345,28 @@ function OperationsView({ token, setMessage }) {
     setAccountExpirationDate("");
   }
 
+  function resetGroupMembershipState() {
+    setGroupQuery("");
+    setSelectedGroup(null);
+    setGroupLoaded(false);
+    setGroupSuggestions([]);
+    setGroupSearchOpen(false);
+    setGroupSearchLoading(false);
+    setConfirmGroupMembership(false);
+  }
+
   function resetOperationState(nextType = targetType, nextOperation = operation) {
     setTarget("");
     setTargetSuggestions([]);
     setTargetSearchOpen(false);
     setTargetSelected(false);
+    setExecutionMode("simulate");
     setReason("");
-    setConfirmDryRun(false);
+    setConfirmOperation(false);
     setNewPassword("");
     setForceChangeAtNextLogon(true);
     resetAccountExpirationState();
+    resetGroupMembershipState();
     setMetadata({ description: "", location: "", managed_by: "" });
     setResult(null);
     setOperation(nextOperation || operationCatalog[nextType][0].id);
@@ -2203,9 +2375,10 @@ function OperationsView({ token, setMessage }) {
   function updateTarget(value) {
     setTarget(value);
     setTargetSelected(false);
-    setConfirmDryRun(false);
+    setConfirmOperation(false);
     setResult(null);
     resetAccountExpirationState();
+    resetGroupMembershipState();
     setTargetSearchOpen(value.trim().length >= 2);
   }
 
@@ -2215,9 +2388,10 @@ function OperationsView({ token, setMessage }) {
     setTargetSelected(true);
     setTargetSuggestions([]);
     setTargetSearchOpen(false);
-    setConfirmDryRun(false);
+    setConfirmOperation(false);
     setResult(null);
     resetAccountExpirationState();
+    resetGroupMembershipState();
   }
 
   useEffect(() => {
@@ -2259,6 +2433,51 @@ function OperationsView({ token, setMessage }) {
     };
   }, [api, target, targetSelected, targetType, token]);
 
+  useEffect(() => {
+    const normalizedGroup = groupQuery.trim();
+    if (
+      !token ||
+      !isGroupMembershipOperation(operation) ||
+      selectedGroup ||
+      groupLoaded ||
+      normalizedGroup.length < 2
+    ) {
+      setGroupSuggestions([]);
+      setGroupSearchLoading(false);
+      return undefined;
+    }
+
+    let canceled = false;
+    const timer = window.setTimeout(async () => {
+      setGroupSearchLoading(true);
+      try {
+        const params = buildQuery({
+          status: "all",
+          query: normalizedGroup,
+          limit: 8,
+        });
+        const payload = await api.getJson(`/groups?${params}`);
+        if (!canceled) {
+          setGroupSuggestions(payload.items || []);
+          setGroupSearchOpen(true);
+        }
+      } catch {
+        if (!canceled) {
+          setGroupSuggestions([]);
+        }
+      } finally {
+        if (!canceled) {
+          setGroupSearchLoading(false);
+        }
+      }
+    }, 350);
+
+    return () => {
+      canceled = true;
+      window.clearTimeout(timer);
+    };
+  }, [api, groupLoaded, groupQuery, operation, selectedGroup, token]);
+
   async function loadAccountExpiration() {
     const normalizedTarget = target.trim();
     if (targetType !== "users" || normalizedTarget.length < 2) {
@@ -2280,12 +2499,73 @@ function OperationsView({ token, setMessage }) {
     }
   }
 
+  function updateGroupQuery(value) {
+    setGroupQuery(value);
+    setSelectedGroup(null);
+    setGroupLoaded(false);
+    setConfirmGroupMembership(false);
+    setConfirmOperation(false);
+    setResult(null);
+    setGroupSearchOpen(value.trim().length >= 2);
+  }
+
+  function selectOperationGroup(group) {
+    const identifier = groupIdentifier(group);
+    setSelectedGroup(group);
+    setGroupQuery(groupTitle(group) || identifier);
+    setGroupLoaded(false);
+    setConfirmGroupMembership(false);
+    setGroupSuggestions([]);
+    setGroupSearchOpen(false);
+    setConfirmOperation(false);
+    setResult(null);
+  }
+
+  async function loadOperationGroup() {
+    const normalizedGroup = groupQuery.trim();
+    if (!isGroupMembershipOperation(operation) || normalizedGroup.length < 2) {
+      setMessage({ type: "error", text: "Selecione um grupo antes de carregar." });
+      return;
+    }
+
+    try {
+      const params = buildQuery({ status: "all", query: normalizedGroup, limit: 8 });
+      const payload = await api.getJson(`/groups?${params}`);
+      const exactGroup =
+        (payload.items || []).find((group) => {
+          const identifier = groupIdentifier(group);
+          return (
+            identifier === normalizedGroup ||
+            group.sam_account_name === normalizedGroup ||
+            group.common_name === normalizedGroup ||
+            group.name === normalizedGroup
+          );
+        }) || (payload.items || [])[0];
+
+      if (!exactGroup) {
+        setMessage({ type: "error", text: "Grupo nao encontrado." });
+        return;
+      }
+
+      setSelectedGroup(exactGroup);
+      setGroupQuery(groupTitle(exactGroup) || groupIdentifier(exactGroup));
+      setGroupLoaded(true);
+      setConfirmGroupMembership(false);
+      setGroupSuggestions([]);
+      setGroupSearchOpen(false);
+      setResult(null);
+      setMessage({ type: "success", text: "Grupo carregado." });
+    } catch (error) {
+      setMessage({ type: "error", text: operatorMessage(error) });
+    }
+  }
+
   async function runOperation(event) {
     event.preventDefault();
     try {
       const requestBody = {
         confirm: true,
-        dry_run: true,
+        dry_run: !isRealExecution,
         reason: reason.trim(),
       };
       if (operation === "reset-password") {
@@ -2301,9 +2581,22 @@ function OperationsView({ token, setMessage }) {
           if (value.trim()) requestBody[key] = value.trim();
         });
       }
-      const payload = await api.postJson(operationPath(targetType, target, operation), requestBody);
+      let path = operationPath(targetType, target, operation);
+      if (isGroupMembershipOperation(operation)) {
+        requestBody.sam_account_name = target.trim();
+        requestBody.protected_group_confirm = confirmGroupMembership;
+        const groupTarget = groupIdentifier(selectedGroup || {});
+        path = `/groups/${encodeURIComponent(groupTarget)}/members/${
+          operation === "add-group" ? "add" : "remove"
+        }`;
+      }
+      const payload = await api.postJson(path, requestBody);
       setResult(payload);
-      setMessage({ type: "success", text: "Dry-run concluido." });
+      setConfirmOperation(false);
+      setMessage({
+        type: "success",
+        text: isRealExecution ? "Alteracao executada no AD." : "Simulacao concluida.",
+      });
     } catch (error) {
       setMessage({ type: "error", text: operatorMessage(error) });
     }
@@ -2316,10 +2609,38 @@ function OperationsView({ token, setMessage }) {
           <h2>Operacoes</h2>
           <p>{selectedOperation?.impact}</p>
         </div>
-        <StatusPill tone="neutral">simulacao</StatusPill>
+        <StatusPill tone={isRealExecution ? "warn" : "neutral"}>
+          {isRealExecution ? "executar no AD" : "simulacao"}
+        </StatusPill>
       </div>
-      <ProtectedNotice token={token} permission="Permissao necessaria: write:users ou write:computers." />
+      <ProtectedNotice token={token} permission="Permissao necessaria: write:users, write:groups ou write:computers." />
       <form className="sensitive-operation" onSubmit={runOperation}>
+        <div className={`execution-mode-selector ${isRealExecution ? "real" : ""}`}>
+          <button
+            className={executionMode === "simulate" ? "active" : ""}
+            type="button"
+            onClick={() => {
+              setExecutionMode("simulate");
+              setConfirmOperation(false);
+              setResult(null);
+            }}
+          >
+            <Shield size={18} />
+            Simular
+          </button>
+          <button
+            className={executionMode === "execute" ? "active" : ""}
+            type="button"
+            onClick={() => {
+              setExecutionMode("execute");
+              setConfirmOperation(false);
+              setResult(null);
+            }}
+          >
+            <AlertTriangle size={18} />
+            Executar no AD
+          </button>
+        </div>
         <div className="operation-fields">
           <label>
             Objeto
@@ -2341,9 +2662,10 @@ function OperationsView({ token, setMessage }) {
               value={operation}
               onChange={(event) => {
                 setOperation(event.target.value);
-                setConfirmDryRun(false);
+                setConfirmOperation(false);
                 setResult(null);
                 resetAccountExpirationState();
+                resetGroupMembershipState();
               }}
             >
               {operations.map((item) => (
@@ -2469,6 +2791,72 @@ function OperationsView({ token, setMessage }) {
               </div>
             </>
           )}
+          {isGroupMembershipOperation(operation) && (
+            <>
+              <label className="wide">
+                Grupo
+                <div className="target-picker">
+                  <div className="searchbox target-search">
+                    <Search size={18} />
+                    <input
+                      autoComplete="off"
+                      value={groupQuery}
+                      onBlur={() => window.setTimeout(() => setGroupSearchOpen(false), 120)}
+                      onChange={(event) => updateGroupQuery(event.target.value)}
+                      onFocus={() => setGroupSearchOpen(groupQuery.trim().length >= 2 && !groupLoaded)}
+                      placeholder="digite parte do nome ou descricao do grupo"
+                    />
+                  </div>
+                  {groupSearchOpen && (
+                    <div className="target-suggestions">
+                      {groupSearchLoading && <div className="target-suggestion muted">Buscando...</div>}
+                      {!groupSearchLoading &&
+                        groupSuggestions.map((group) => {
+                          const identifier = groupIdentifier(group);
+                          return (
+                            <button key={identifier} type="button" onMouseDown={() => selectOperationGroup(group)}>
+                              <strong>{groupTitle(group)}</strong>
+                              <span>{groupSubtitle(group) || identifier}</span>
+                            </button>
+                          );
+                        })}
+                      {!groupSearchLoading && !groupSuggestions.length && (
+                        <div className="target-suggestion muted">Nenhum grupo encontrado</div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </label>
+              <button
+                className="inline-action-button"
+                type="button"
+                onClick={loadOperationGroup}
+                disabled={!token || groupQuery.trim().length < 2}
+              >
+                <Search size={18} />
+                Carregar grupo
+              </button>
+              <label className="wide account-expiration-state">
+                Grupo carregado
+                <div className="readonly-field">
+                  {groupLoaded && selectedGroup
+                    ? `${groupTitle(selectedGroup) || selectedGroup.sam_account_name} · ${
+                        selectedGroup.member_count ?? 0
+                      } membro(s)`
+                    : "Carregue o grupo antes de executar"}
+                </div>
+              </label>
+              <label className="toggle-row">
+                <input
+                  checked={confirmGroupMembership}
+                  disabled={!groupLoaded}
+                  type="checkbox"
+                  onChange={(event) => setConfirmGroupMembership(event.target.checked)}
+                />
+                Confirmo o grupo carregado para esta operacao.
+              </label>
+            </>
+          )}
           {operation === "metadata" && (
             <>
               <label>
@@ -2501,18 +2889,22 @@ function OperationsView({ token, setMessage }) {
           reason={reason}
           target={target}
           targetType={targetType}
+          executionMode={executionMode}
+          selectedGroup={selectedGroup}
         />
         <label className="confirm-row">
           <input
-            checked={confirmDryRun}
+            checked={confirmOperation}
             type="checkbox"
-            onChange={(event) => setConfirmDryRun(event.target.checked)}
+            onChange={(event) => setConfirmOperation(event.target.checked)}
           />
-          Confirmo a simulacao para este alvo.
+          {isRealExecution
+            ? "Confirmo executar esta alteracao diretamente no AD."
+            : "Confirmo a simulacao para este alvo."}
         </label>
-        <button type="submit" disabled={!canSubmit}>
-          <Activity size={18} />
-          Executar simulacao
+        <button className={isRealExecution ? "danger-action" : ""} type="submit" disabled={!canSubmit}>
+          {isRealExecution ? <AlertTriangle size={18} /> : <Activity size={18} />}
+          {isRealExecution ? "Executar no AD" : "Executar simulacao"}
         </button>
       </form>
       <OperationResult result={result} />

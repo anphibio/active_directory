@@ -828,6 +828,39 @@ td {
   gap: 14px;
 }
 
+.execution-mode-selector {
+  background: #f7fafb;
+  border: 1px solid #d7e0e5;
+  border-radius: 8px;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding: 8px;
+}
+
+.execution-mode-selector button {
+  background: #fff;
+  border: 1px solid #c9d5dc;
+  color: #334955;
+  min-height: 46px;
+}
+
+.execution-mode-selector button.active {
+  background: #214f67;
+  border-color: #214f67;
+  color: #fff;
+}
+
+.execution-mode-selector.real {
+  background: #fff7ed;
+  border-color: #fed7aa;
+}
+
+.execution-mode-selector.real button.active {
+  background: #b53a17;
+  border-color: #b53a17;
+}
+
 .operation-fields {
   align-items: end;
   background: #f7fafb;
@@ -977,6 +1010,11 @@ td {
   padding: 14px;
 }
 
+.operation-summary.real-execution {
+  background: #fff1f2;
+  border-color: #fecdd3;
+}
+
 .operation-summary dl,
 .state-card dl {
   display: grid;
@@ -1008,6 +1046,17 @@ td {
 .operation-summary p {
   color: #405662;
   margin: 0 0 12px;
+}
+
+.real-execution-warning {
+  background: #fee2e2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  color: #991b1b;
+  font-size: 0.88rem;
+  font-weight: 800;
+  margin-bottom: 12px;
+  padding: 10px 12px;
 }
 
 .change-list {
@@ -1071,6 +1120,10 @@ td {
 .result-banner span {
   font-size: 0.86rem;
   margin-top: 3px;
+}
+
+button.danger-action {
+  background: #b53a17;
 }
 
 .state-grid {

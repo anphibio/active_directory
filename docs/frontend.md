@@ -93,13 +93,18 @@ A guia `Logs` consome `/audit/events` e mostra:
 
 A tabela tem rolagem interna para manter a pagina estavel e aceita limite de linhas.
 
-## Operacoes Sensíveis
+## Operacoes Sensiveis
 
-A aba de operacoes executa somente simulacoes com `dry_run=true` e exige confirmacao explicita antes do envio.
+A aba de operacoes permite selecionar o modo antes do envio:
+
+- `Simular`: modo padrao, envia `dry_run=true` e nao altera o Active Directory.
+- `Executar no AD`: envia `dry_run=false` e executa a alteracao real, desde que o usuario tenha permissao e a API esteja com transporte seguro para escrita.
+
+Qualquer modo exige confirmacao explicita antes do envio. No modo real, a interface mostra alerta adicional e o botao de execucao fica destacado.
 
 Fluxos disponiveis:
 
-- Usuarios: desbloquear, habilitar, desabilitar, forcar troca de senha e resetar senha.
+- Usuarios: desbloquear, habilitar, desabilitar, forcar troca de senha, resetar senha, alterar expiracao da conta, adicionar a grupo e remover de grupo.
 - Computadores: habilitar, desabilitar e atualizar metadados.
 
 Antes da chamada, a interface mostra:
@@ -108,9 +113,9 @@ Antes da chamada, a interface mostra:
 - Acao selecionada e impacto esperado.
 - Modo de execucao.
 - Justificativa informada.
-- Campos adicionais, como senha temporaria ou metadados.
+- Campos adicionais, como senha temporaria, grupo carregado ou metadados.
 
-Depois da simulacao, a interface destaca se houve apenas validacao em dry-run e mostra o estado anterior retornado pela API. Senhas temporarias nunca sao exibidas no resultado.
+Depois da operacao, a interface destaca se houve apenas validacao em dry-run ou alteracao real no AD. Quando ha mudanca real, tambem exibe o estado posterior retornado pela API. Senhas temporarias nunca sao exibidas no resultado.
 
 ## Painel Operacional
 
@@ -140,8 +145,8 @@ GET /reports/worker-status
 
 - O token fica no armazenamento local do navegador.
 - Nao use bootstrap token em maquina compartilhada.
-- Operacoes na interface usam `dry_run=true`.
-- Escrita real deve ser liberada apenas apos validacao operacional.
+- Use `Simular` antes de qualquer acao sensivel.
+- Escrita real deve ser executada apenas com `AD_USE_LDAPS=true`, `AD_TLS_REQUIRE_CERT=true` e autorizacao operacional.
 - O teste de conexao AD no painel executa bind de validacao e deve ser usado com credenciais de menor privilegio.
 
 ## Estados De Erro

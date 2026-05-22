@@ -15,6 +15,69 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+function Test-ValidInteractiveUser {
+    param(
+        [Parameter(Mandatory = $false)]
+        [string]$UserName
+    )
+
+    if ([string]::IsNullOrWhiteSpace($UserName)) {
+        return $false
+    }
+
+    $account = $UserName
+    if ($account -like "*\*") {
+        $account = $account.Split("\")[-1]
+    }
+
+    return -not $account.EndsWith("$")
+}
+
+function Get-InteractiveUser {
+    $explorerOwner = Get-CimInstance Win32_Process -Filter "name = 'explorer.exe'" |
+        ForEach-Object {
+            try {
+                $owner = Invoke-CimMethod -InputObject $_ -MethodName GetOwner
+                if ($owner.ReturnValue -eq 0 -and (Test-ValidInteractiveUser $owner.User)) {
+                    "$($owner.Domain)\$($owner.User)"
+                }
+            }
+            catch {
+                $null
+            }
+        } |
+        Where-Object { Test-ValidInteractiveUser $_ } |
+        Select-Object -First 1
+
+    if (Test-ValidInteractiveUser $explorerOwner) {
+        return $explorerOwner
+    }
+
+    $computerSystemUser = (Get-CimInstance Win32_ComputerSystem).UserName
+    if (Test-ValidInteractiveUser $computerSystemUser) {
+        return $computerSystemUser
+    }
+
+    $interactiveSessionUser = Get-CimInstance Win32_LogonSession -Filter "LogonType = 2 OR LogonType = 10" |
+        ForEach-Object {
+            try {
+                Get-CimAssociatedInstance -InputObject $_ -Association Win32_LoggedOnUser |
+                    ForEach-Object {
+                        if (Test-ValidInteractiveUser $_.Name) {
+                            "$($_.Domain)\$($_.Name)"
+                        }
+                    }
+            }
+            catch {
+                $null
+            }
+        } |
+        Where-Object { Test-ValidInteractiveUser $_ } |
+        Select-Object -First 1
+
+    return $interactiveSessionUser
+}
+
 try {
     if ([string]::IsNullOrWhiteSpace($Endpoint) -or [string]::IsNullOrWhiteSpace($Token)) {
         exit 0
@@ -29,7 +92,11 @@ try {
     }
 
     $computer = $env:COMPUTERNAME
-    $user = (Get-CimInstance Win32_ComputerSystem).UserName
+    $user = Get-InteractiveUser
+    if (-not (Test-ValidInteractiveUser $user)) {
+        exit 0
+    }
+
     $ip = Get-NetIPAddress -AddressFamily IPv4 |
         Where-Object {
             $_.IPAddress -notlike "169.254*" -and

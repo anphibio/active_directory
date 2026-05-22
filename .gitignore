@@ -24,3 +24,4 @@ docker/secrets/*
 scripts/*.local.ps1
 
 .DS_Store
+~$*.docx

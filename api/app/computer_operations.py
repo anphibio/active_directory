@@ -7,6 +7,7 @@ from ldap3.core.exceptions import LDAPException
 from pydantic import BaseModel, Field
 
 from app.ad_client import ad_connection
+from app.ad_errors import ad_modify_error
 from app.ad_utils import ACCOUNT_DISABLED_FLAG, ad_int, ldap_escape
 from app.audit import audit_event
 from app.computers import COMPUTER_ATTRIBUTES, AdComputer, _entry_to_computer
@@ -101,11 +102,7 @@ def _modify_computer(dn: str, changes: dict[str, list[tuple[int, list[Any]]]]) -
     try:
         with ad_connection(get_settings()) as connection:
             if not connection.modify(dn, changes):
-                description = connection.result.get("description", "modifyFailed")
-                raise HTTPException(
-                    status_code=status.HTTP_502_BAD_GATEWAY,
-                    detail=f"Active Directory computer modify failed: {description}",
-                )
+                raise ad_modify_error("Active Directory computer modify failed", connection.result)
     except LDAPException as exc:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
@@ -164,6 +161,7 @@ def _run_computer_operation(
     audit_event(
         "computer_write_operation",
         operator=principal.subject,
+        roles=[role.value for role in principal.roles],
         operation=operation.value,
         identifier=identifier,
         distinguished_name=dn,

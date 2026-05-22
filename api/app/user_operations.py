@@ -8,6 +8,7 @@ from ldap3.core.exceptions import LDAPException
 from pydantic import BaseModel, Field, SecretStr
 
 from app.ad_client import ad_connection
+from app.ad_errors import ad_modify_error
 from app.ad_utils import ACCOUNT_DISABLED_FLAG, ad_int, datetime_to_ad_timestamp, ldap_escape
 from app.audit import audit_event
 from app.config import get_settings
@@ -99,11 +100,7 @@ def _modify_user(dn: str, changes: dict[str, list[tuple[int, list[Any]]]]) -> No
     try:
         with ad_connection(settings) as connection:
             if not connection.modify(dn, changes):
-                description = connection.result.get("description", "modifyFailed")
-                raise HTTPException(
-                    status_code=status.HTTP_502_BAD_GATEWAY,
-                    detail=f"Active Directory modify failed: {description}",
-                )
+                raise ad_modify_error("Active Directory modify failed", connection.result)
     except LDAPException as exc:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
@@ -162,6 +159,7 @@ def _run_simple_operation(
     audit_event(
         "user_write_operation",
         operator=principal.subject,
+        roles=[role.value for role in principal.roles],
         operation=operation.value,
         sam_account_name=sam_account_name,
         distinguished_name=dn,
@@ -280,6 +278,7 @@ def reset_password(
     audit_event(
         "user_write_operation",
         operator=principal.subject,
+        roles=[role.value for role in principal.roles],
         operation=UserOperationType.reset_password.value,
         sam_account_name=sam_account_name,
         distinguished_name=dn,

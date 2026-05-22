@@ -7,6 +7,7 @@ from ldap3.core.exceptions import LDAPException
 from pydantic import BaseModel, Field
 
 from app.ad_client import ad_connection
+from app.ad_errors import ad_modify_error
 from app.audit import audit_event
 from app.config import get_settings
 from app.guards import require_safe_write_transport
@@ -81,11 +82,7 @@ def _modify_group_member(group_dn: str, user_dn: str, operation: GroupOperationT
     try:
         with ad_connection(get_settings()) as connection:
             if not connection.modify(group_dn, {"member": [(modify_operation, [user_dn])]}):
-                description = connection.result.get("description", "modifyFailed")
-                raise HTTPException(
-                    status_code=status.HTTP_502_BAD_GATEWAY,
-                    detail=f"Active Directory group modify failed: {description}",
-                )
+                raise ad_modify_error("Active Directory group modify failed", connection.result)
     except LDAPException as exc:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
@@ -116,6 +113,7 @@ def _run_membership_operation(
     audit_event(
         "group_write_operation",
         operator=principal.subject,
+        roles=[role.value for role in principal.roles],
         operation=operation.value,
         group_dn=group.distinguished_name,
         sam_account_name=request.sam_account_name,

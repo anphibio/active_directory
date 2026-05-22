@@ -48,7 +48,7 @@ Tambem e possivel passar por parametro na Scheduled Task:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "\\DOMINIO\SYSVOL\DOMINIO\scripts\workstation-logon-collector.ps1" -Endpoint "https://SEU-SERVIDOR/api/status" -Token "TOKEN_DA_GPO"
 ```
 
-Modelo embutido do script:
+Modelo resumido do script:
 
 ```powershell
 $ErrorActionPreference = "Stop"
@@ -60,7 +60,10 @@ try {
     Start-Sleep -Seconds (Get-Random -Minimum 0 -Maximum 20)
 
     $computer = $env:COMPUTERNAME
-    $user = (Get-CimInstance Win32_ComputerSystem).UserName
+    $user = Get-InteractiveUser
+    if (-not $user -or $user.EndsWith('$')) {
+        exit 0
+    }
     $ip = Get-NetIPAddress -AddressFamily IPv4 |
         Where-Object {
             $_.IPAddress -notlike "169.254*" -and
@@ -88,6 +91,11 @@ catch {
     exit 0
 }
 ```
+
+O script versionado em `scripts/workstation-logon-collector.ps1` inclui a funcao `Get-InteractiveUser`.
+Ela prioriza o dono do processo `explorer.exe`, depois `Win32_ComputerSystem.UserName` e, por fim,
+sessoes interativas/remotas. Isso evita registrar a conta da maquina, como `SRVHMLWAP30$`, quando a
+tarefa agendada roda como `NT AUTHORITY\SYSTEM`.
 
 ## Agendamento Por GPO
 
@@ -184,6 +192,10 @@ Na aba `General`:
 - `Run with highest privileges`: habilitado
 - `User account`: `NT AUTHORITY\SYSTEM`
 - `Configure for`: versao do Windows usada nas estacoes
+
+Mesmo executando como `SYSTEM`, o script identifica o usuario interativo real. Se nenhum usuario
+interativo valido estiver logado, ou se o resultado for uma conta de maquina terminada em `$`, o
+script encerra sem enviar evento.
 
 ### 4. Configurar Os Triggers
 
