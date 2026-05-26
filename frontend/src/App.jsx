@@ -339,9 +339,10 @@ function exportReportPdf(payload) {
   };
 }
 
-function rolesText(roles) {
-  if (!Array.isArray(roles) || !roles.length) return "";
-  return roles.map((role) => labelFor("roles", role)).join(", ");
+function commonNameFromDn(value) {
+  if (!value || typeof value !== "string") return "";
+  const match = value.match(/(?:^|,)CN=([^,]+)/i);
+  return match ? match[1].replace(/\\,/g, ",").trim() : "";
 }
 
 const userActionLogEvents = ["user_write_operation", "computer_write_operation", "group_write_operation"];
@@ -1937,11 +1938,19 @@ function LogsView({ token, setMessage }) {
 
   const normalizedRows = rows.map((row) => {
     const payload = row.payload || {};
+    const isGroupMembershipAction =
+      row.event === "group_write_operation" &&
+      ["add_member", "remove_member"].includes(payload.operation);
+    const groupTarget =
+      payload.group ||
+      payload.group_sam_account_name ||
+      commonNameFromDn(payload.group_dn) ||
+      payload.group_dn ||
+      "";
     return {
       id: row.id,
       occurred_at: row.occurred_at,
       operator: row.operator || payload.operator || payload.username || "",
-      roles: rolesText(payload.roles),
       action: actionLabel(row.event, payload.operation),
       target:
         payload.sam_account_name ||
@@ -1952,6 +1961,7 @@ function LogsView({ token, setMessage }) {
         payload.user_dn ||
         payload.distinguished_name ||
         "",
+      group: isGroupMembershipAction ? groupTarget : "",
       origin: payload.origin || payload.client_host || "",
       mode: payload.dry_run === false ? "Executado no AD" : "Simulacao",
       reason: payload.reason || "",
@@ -2012,10 +2022,10 @@ function LogsView({ token, setMessage }) {
               <th>Data/hora</th>
               <th>Usuario AD</th>
               <th>Origem</th>
-              <th>Perfil</th>
               <th>Acao</th>
               <th>Modo</th>
               <th>Alvo</th>
+              <th>Grupo</th>
               <th>Justificativa</th>
             </tr>
           </thead>
@@ -2025,10 +2035,10 @@ function LogsView({ token, setMessage }) {
                 <td>{displayValue(row.occurred_at)}</td>
                 <td>{row.operator}</td>
                 <td>{row.origin}</td>
-                <td>{row.roles}</td>
                 <td>{row.action}</td>
                 <td>{row.mode}</td>
                 <td className="clip-cell" title={row.target}>{row.target}</td>
+                <td className="clip-cell" title={row.group}>{row.group}</td>
                 <td className="clip-cell" title={row.reason}>{row.reason}</td>
               </tr>
             ))}

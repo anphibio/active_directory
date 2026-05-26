@@ -115,6 +115,8 @@ def _run_membership_operation(
         operator=principal.subject,
         roles=[role.value for role in principal.roles],
         operation=operation.value,
+        group=group.common_name or group.sam_account_name or group.name,
+        group_sam_account_name=group.sam_account_name,
         group_dn=group.distinguished_name,
         sam_account_name=request.sam_account_name,
         user_dn=user_dn,
