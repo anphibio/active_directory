@@ -146,6 +146,7 @@ GET /reports/worker-status
 - O token fica no armazenamento local do navegador.
 - Nao use bootstrap token em maquina compartilhada.
 - Use `Simular` antes de qualquer acao sensivel.
+- Quando `APP_ENV=production`, a guia **Operacoes** remove a opcao `Simular` e mantem apenas execucao real no AD.
 - Escrita real deve ser executada apenas com `AD_USE_LDAPS=true`, `AD_TLS_REQUIRE_CERT=true` e autorizacao operacional.
 - O teste de conexao AD no painel executa bind de validacao e deve ser usado com credenciais de menor privilegio.
 

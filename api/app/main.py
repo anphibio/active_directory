@@ -144,6 +144,17 @@ def config_summary(
     return settings.safe_summary()
 
 
+@app.get("/config/runtime")
+def config_runtime() -> dict[str, str | bool]:
+    settings = get_settings()
+    is_production = settings.app_env.lower() == "production"
+    return {
+        "app_env": settings.app_env,
+        "is_production": is_production,
+        "operation_simulation_enabled": not is_production,
+    }
+
+
 @app.get("/ad/connection-test")
 def ad_connection_test(
     principal: Annotated[Principal, Depends(require_permission(Permission.test_ad_connection))],

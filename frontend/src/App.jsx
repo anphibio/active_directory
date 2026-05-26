@@ -1953,6 +1953,7 @@ function LogsView({ token, setMessage }) {
         payload.distinguished_name ||
         "",
       origin: payload.origin || payload.client_host || "",
+      mode: payload.dry_run === false ? "Executado no AD" : "Simulacao",
       reason: payload.reason || "",
       raw_event: row.event,
     };
@@ -2013,6 +2014,7 @@ function LogsView({ token, setMessage }) {
               <th>Origem</th>
               <th>Perfil</th>
               <th>Acao</th>
+              <th>Modo</th>
               <th>Alvo</th>
               <th>Justificativa</th>
             </tr>
@@ -2025,13 +2027,14 @@ function LogsView({ token, setMessage }) {
                 <td>{row.origin}</td>
                 <td>{row.roles}</td>
                 <td>{row.action}</td>
+                <td>{row.mode}</td>
                 <td className="clip-cell" title={row.target}>{row.target}</td>
                 <td className="clip-cell" title={row.reason}>{row.reason}</td>
               </tr>
             ))}
             {!normalizedRows.length && (
               <tr>
-                <td colSpan="7">Sem dados</td>
+                <td colSpan="8">Sem dados</td>
               </tr>
             )}
           </tbody>
@@ -2290,6 +2293,7 @@ function OperationResult({ result }) {
 
 function OperationsView({ token, setMessage }) {
   const api = useApi(token, setMessage);
+  const [runtimeConfig, setRuntimeConfig] = useState(null);
   const [targetType, setTargetType] = useState("users");
   const [target, setTarget] = useState("");
   const [operation, setOperation] = useState("unlock");
@@ -2318,7 +2322,10 @@ function OperationsView({ token, setMessage }) {
 
   const operations = operationCatalog[targetType];
   const selectedOperation = operations.find((item) => item.id === operation);
-  const isRealExecution = executionMode === "execute";
+  const runtimeConfigLoaded = Boolean(runtimeConfig);
+  const simulationAvailable = runtimeConfigLoaded && runtimeConfig.operation_simulation_enabled !== false;
+  const isProduction = runtimeConfig?.is_production || runtimeConfig?.app_env?.toLowerCase() === "production";
+  const isRealExecution = runtimeConfigLoaded && (!simulationAvailable || executionMode === "execute");
   const metadataReady =
     operation !== "metadata" || Object.values(metadata).some((value) => value.trim().length > 0);
   const passwordReady = operation !== "reset-password" || newPassword.length >= 8;
@@ -2328,6 +2335,7 @@ function OperationsView({ token, setMessage }) {
   const groupMembershipReady = !isGroupMembershipOperation(operation) || (groupLoaded && selectedGroup);
   const groupConfirmationReady = !isGroupMembershipOperation(operation) || confirmGroupMembership;
   const canSubmit =
+    runtimeConfigLoaded &&
     Boolean(token) &&
     target.trim().length > 0 &&
     reason.trim().length >= 8 &&
@@ -2360,7 +2368,7 @@ function OperationsView({ token, setMessage }) {
     setTargetSuggestions([]);
     setTargetSearchOpen(false);
     setTargetSelected(false);
-    setExecutionMode("simulate");
+    setExecutionMode(simulationAvailable ? "simulate" : "execute");
     setReason("");
     setConfirmOperation(false);
     setNewPassword("");
@@ -2371,6 +2379,35 @@ function OperationsView({ token, setMessage }) {
     setResult(null);
     setOperation(nextOperation || operationCatalog[nextType][0].id);
   }
+
+  useEffect(() => {
+    if (!token) {
+      setRuntimeConfig(null);
+      return undefined;
+    }
+
+    let canceled = false;
+    async function loadRuntimeConfig() {
+      try {
+        const payload = await api.getJson("/config/runtime");
+        if (canceled) return;
+        setRuntimeConfig(payload);
+        if (payload.operation_simulation_enabled === false) {
+          setExecutionMode("execute");
+        }
+      } catch {
+        if (!canceled) {
+          setRuntimeConfig(null);
+          setMessage({ type: "error", text: "Nao foi possivel carregar o modo operacional." });
+        }
+      }
+    }
+
+    loadRuntimeConfig();
+    return () => {
+      canceled = true;
+    };
+  }, [api, token]);
 
   function updateTarget(value) {
     setTarget(value);
@@ -2565,7 +2602,7 @@ function OperationsView({ token, setMessage }) {
     try {
       const requestBody = {
         confirm: true,
-        dry_run: !isRealExecution,
+        dry_run: simulationAvailable ? !isRealExecution : false,
         reason: reason.trim(),
       };
       if (operation === "reset-password") {
@@ -2610,37 +2647,55 @@ function OperationsView({ token, setMessage }) {
           <p>{selectedOperation?.impact}</p>
         </div>
         <StatusPill tone={isRealExecution ? "warn" : "neutral"}>
-          {isRealExecution ? "executar no AD" : "simulacao"}
+          {!runtimeConfigLoaded ? "carregando" : isRealExecution ? (isProduction ? "producao" : "executar no AD") : "simulacao"}
         </StatusPill>
       </div>
       <ProtectedNotice token={token} permission="Permissao necessaria: write:users, write:groups ou write:computers." />
       <form className="sensitive-operation" onSubmit={runOperation}>
-        <div className={`execution-mode-selector ${isRealExecution ? "real" : ""}`}>
-          <button
-            className={executionMode === "simulate" ? "active" : ""}
-            type="button"
-            onClick={() => {
-              setExecutionMode("simulate");
-              setConfirmOperation(false);
-              setResult(null);
-            }}
-          >
-            <Shield size={18} />
-            Simular
-          </button>
-          <button
-            className={executionMode === "execute" ? "active" : ""}
-            type="button"
-            onClick={() => {
-              setExecutionMode("execute");
-              setConfirmOperation(false);
-              setResult(null);
-            }}
-          >
+        {!runtimeConfigLoaded ? (
+          <div className="production-execution-mode pending">
+            <Activity size={18} />
+            <div>
+              <strong>Carregando modo operacional</strong>
+              <span>Aguarde a leitura da configuracao antes de executar operacoes.</span>
+            </div>
+          </div>
+        ) : simulationAvailable ? (
+          <div className={`execution-mode-selector ${isRealExecution ? "real" : ""}`}>
+            <button
+              className={executionMode === "simulate" ? "active" : ""}
+              type="button"
+              onClick={() => {
+                setExecutionMode("simulate");
+                setConfirmOperation(false);
+                setResult(null);
+              }}
+            >
+              <Shield size={18} />
+              Simular
+            </button>
+            <button
+              className={executionMode === "execute" ? "active" : ""}
+              type="button"
+              onClick={() => {
+                setExecutionMode("execute");
+                setConfirmOperation(false);
+                setResult(null);
+              }}
+            >
+              <AlertTriangle size={18} />
+              Executar no AD
+            </button>
+          </div>
+        ) : (
+          <div className="production-execution-mode">
             <AlertTriangle size={18} />
-            Executar no AD
-          </button>
-        </div>
+            <div>
+              <strong>Modo producao</strong>
+              <span>Simulacao indisponivel. As operacoes confirmadas serao executadas no AD.</span>
+            </div>
+          </div>
+        )}
         <div className="operation-fields">
           <label>
             Objeto

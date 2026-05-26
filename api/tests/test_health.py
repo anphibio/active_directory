@@ -22,6 +22,18 @@ def test_config_summary_requires_authentication() -> None:
     assert response.status_code == 401
 
 
+def test_runtime_config_hides_operation_simulation_in_production(monkeypatch) -> None:
+    monkeypatch.setenv("APP_ENV", "production")
+    get_settings.cache_clear()
+    client = TestClient(app)
+
+    response = client.get("/config/runtime")
+
+    assert response.status_code == 200
+    assert response.json()["is_production"] is True
+    assert response.json()["operation_simulation_enabled"] is False
+
+
 def test_config_summary_does_not_expose_secrets(monkeypatch) -> None:
     monkeypatch.setenv("JWT_SECRET", "test-jwt-secret")
     monkeypatch.setenv("APP_BOOTSTRAP_ADMIN_TOKEN", "test-bootstrap-token")

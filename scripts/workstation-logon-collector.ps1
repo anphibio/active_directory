@@ -30,16 +30,101 @@ function Test-ValidInteractiveUser {
         $account = $account.Split("\")[-1]
     }
 
-    return -not $account.EndsWith("$")
+    if ($account.EndsWith("$")) {
+        return $false
+    }
+
+    if ($account -match "^(DWM-|UMFD-|LOCAL SERVICE$|NETWORK SERVICE$|SYSTEM$)") {
+        return $false
+    }
+
+    return $true
+}
+
+function Get-ActiveSessionIds {
+    $activeSessionIds = @()
+    $lockedSessionIds = @()
+
+    try {
+        $queryUserOutput = & query user 2>$null
+    }
+    catch {
+        return $activeSessionIds
+    }
+
+    try {
+        $lockedSessionIds = @(Get-CimInstance Win32_Process -Filter "name = 'LogonUI.exe'" |
+            Select-Object -ExpandProperty SessionId -Unique)
+    }
+    catch {
+        $lockedSessionIds = @()
+    }
+
+    foreach ($line in ($queryUserOutput | Select-Object -Skip 1)) {
+        $normalizedLine = ($line -replace "^\s*>", "").Trim()
+        if ([string]::IsNullOrWhiteSpace($normalizedLine)) {
+            continue
+        }
+
+        $parts = $normalizedLine -split "\s+"
+        $sessionId = $null
+        $sessionState = $null
+
+        for ($index = 1; $index -lt $parts.Count; $index++) {
+            if ($parts[$index] -match "^\d+$") {
+                $sessionId = [int]$parts[$index]
+                if (($index + 1) -lt $parts.Count) {
+                    $sessionState = $parts[$index + 1]
+                }
+                break
+            }
+        }
+
+        if (
+            $null -ne $sessionId -and
+            $sessionState -match "^(Active|Ativo|Ativa)$" -and
+            -not ($lockedSessionIds -contains $sessionId)
+        ) {
+            $activeSessionIds += $sessionId
+        }
+    }
+
+    return $activeSessionIds | Select-Object -Unique
+}
+
+function Format-DomainUser {
+    param(
+        [Parameter(Mandatory = $false)]
+        [string]$Domain,
+
+        [Parameter(Mandatory = $false)]
+        [string]$User
+    )
+
+    if ([string]::IsNullOrWhiteSpace($User)) {
+        return $null
+    }
+
+    if ([string]::IsNullOrWhiteSpace($Domain)) {
+        return $User
+    }
+
+    return "$Domain\$User"
 }
 
 function Get-InteractiveUser {
+    $activeSessionIds = @(Get-ActiveSessionIds)
+    if ($activeSessionIds.Count -eq 0) {
+        return $null
+    }
+
     $explorerOwner = Get-CimInstance Win32_Process -Filter "name = 'explorer.exe'" |
+        Where-Object { $activeSessionIds -contains $_.SessionId } |
         ForEach-Object {
             try {
                 $owner = Invoke-CimMethod -InputObject $_ -MethodName GetOwner
                 if ($owner.ReturnValue -eq 0 -and (Test-ValidInteractiveUser $owner.User)) {
-                    "$($owner.Domain)\$($owner.User)"
+                    Format-DomainUser -Domain $owner.Domain -User $owner.User
                 }
             }
             catch {
@@ -58,24 +143,7 @@ function Get-InteractiveUser {
         return $computerSystemUser
     }
 
-    $interactiveSessionUser = Get-CimInstance Win32_LogonSession -Filter "LogonType = 2 OR LogonType = 10" |
-        ForEach-Object {
-            try {
-                Get-CimAssociatedInstance -InputObject $_ -Association Win32_LoggedOnUser |
-                    ForEach-Object {
-                        if (Test-ValidInteractiveUser $_.Name) {
-                            "$($_.Domain)\$($_.Name)"
-                        }
-                    }
-            }
-            catch {
-                $null
-            }
-        } |
-        Where-Object { Test-ValidInteractiveUser $_ } |
-        Select-Object -First 1
-
-    return $interactiveSessionUser
+    return $null
 }
 
 try {

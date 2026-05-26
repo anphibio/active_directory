@@ -93,9 +93,14 @@ catch {
 ```
 
 O script versionado em `scripts/workstation-logon-collector.ps1` inclui a funcao `Get-InteractiveUser`.
-Ela prioriza o dono do processo `explorer.exe`, depois `Win32_ComputerSystem.UserName` e, por fim,
-sessoes interativas/remotas. Isso evita registrar a conta da maquina, como `SRVHMLWAP30$`, quando a
-tarefa agendada roda como `NT AUTHORITY\SYSTEM`.
+Ela consulta as sessoes ativas do Windows com `query user`, usa apenas sessoes marcadas como
+`Active`, `Ativo` ou `Ativa`, ignora sessoes com tela bloqueada detectada por `LogonUI.exe`, e so
+entao identifica o dono do `explorer.exe` daquela sessao ou o usuario interativo atual em
+`Win32_ComputerSystem.UserName`.
+
+Se nao houver sessao ativa, se a sessao for historica/desconectada, ou se o resultado for uma conta
+de maquina terminada em `$`, o script encerra sem enviar evento. Isso evita registrar falso positivo
+quando a tarefa roda como `NT AUTHORITY\SYSTEM` e o Windows ainda possui sessoes antigas em WMI.
 
 ## Agendamento Por GPO
 
@@ -194,8 +199,8 @@ Na aba `General`:
 - `Configure for`: versao do Windows usada nas estacoes
 
 Mesmo executando como `SYSTEM`, o script identifica o usuario interativo real. Se nenhum usuario
-interativo valido estiver logado, ou se o resultado for uma conta de maquina terminada em `$`, o
-script encerra sem enviar evento.
+interativo valido estiver ativo, se houver apenas sessao desconectada ou tela bloqueada, ou se o
+resultado for uma conta de maquina terminada em `$`, o script encerra sem enviar evento.
 
 ### 4. Configurar Os Triggers
 

@@ -861,6 +861,43 @@ td {
   border-color: #b53a17;
 }
 
+.production-execution-mode {
+  align-items: center;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  border-radius: 8px;
+  color: #8a2f12;
+  display: flex;
+  gap: 12px;
+  min-height: 58px;
+  padding: 12px 14px;
+}
+
+.production-execution-mode strong {
+  color: #7c2d12;
+  display: block;
+  font-size: 0.95rem;
+}
+
+.production-execution-mode span {
+  color: #8a2f12;
+  display: block;
+  font-size: 0.88rem;
+  font-weight: 700;
+  margin-top: 2px;
+}
+
+.production-execution-mode.pending {
+  background: #f7fafb;
+  border-color: #d7e0e5;
+  color: #405662;
+}
+
+.production-execution-mode.pending strong,
+.production-execution-mode.pending span {
+  color: #405662;
+}
+
 .operation-fields {
   align-items: end;
   background: #f7fafb;

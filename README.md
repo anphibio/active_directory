@@ -268,11 +268,21 @@ Execute uma validação local equivalente à pipeline:
 bash scripts/ci-local.sh
 ```
 
+Deploy inicial com build local no servidor:
+
+```bash
+cp .env.example .env
+# edite .env com APP_ENV=production, LDAPS, segredos e URLs reais
+docker compose up -d --build database redis
+docker compose run --rm api python -m app.migrate
+docker compose up -d --build api worker frontend
+```
+
 Deploy com imagens versionadas:
 
 ```bash
 IMAGE_REGISTRY=ghcr.io \
-IMAGE_NAMESPACE=owner/repo \
+IMAGE_NAMESPACE=anphibio/active_directory \
 IMAGE_TAG=v0.1.0 \
 docker compose -f compose.yaml -f compose.prod.yaml up -d
 ```
