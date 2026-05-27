@@ -10,6 +10,8 @@ RUN npm install
 COPY index.html .
 COPY src ./src
 
+RUN chown -R app:app /app
+
 USER app
 
 EXPOSE 3000

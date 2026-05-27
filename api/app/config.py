@@ -32,6 +32,7 @@ class Settings(BaseSettings):
         default="http://localhost:3000,http://127.0.0.1:3000,http://localhost:4173,http://127.0.0.1:4173",
         alias="CORS_ALLOWED_ORIGINS",
     )
+    trusted_proxy_cidrs: str = Field(default="", alias="TRUSTED_PROXY_CIDRS")
     ad_domain: str = Field(default="", alias="AD_DOMAIN")
     ad_base_dn: str = Field(default="", alias="AD_BASE_DN")
     ad_default_user_ou: str = Field(default="", alias="AD_DEFAULT_USER_OU")
@@ -101,6 +102,7 @@ class Settings(BaseSettings):
             "api_host": self.api_host,
             "api_port": self.api_port,
             "cors_allowed_origins_configured": bool(self.cors_allowed_origins),
+            "trusted_proxy_cidrs_configured": bool(self.trusted_proxy_cidrs),
             "ad_domain_configured": bool(self.ad_domain),
             "ad_base_dn_configured": bool(self.ad_base_dn),
             "ad_default_user_ou_configured": bool(self.ad_default_user_ou),
@@ -160,6 +162,9 @@ class Settings(BaseSettings):
 
     def cors_origins(self) -> list[str]:
         return [item.strip() for item in self.cors_allowed_origins.split(",") if item.strip()]
+
+    def trusted_proxy_networks(self) -> list[str]:
+        return [item.strip() for item in self.trusted_proxy_cidrs.split(",") if item.strip()]
 
     def production_errors(self) -> list[str]:
         errors: list[str] = []

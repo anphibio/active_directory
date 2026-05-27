@@ -1,4 +1,5 @@
 import json
+from ipaddress import ip_address, ip_network
 from contextvars import ContextVar
 from datetime import UTC, datetime
 from typing import Any
@@ -81,6 +82,52 @@ def _target_from_fields(fields: dict[str, Any]) -> str | None:
     return None
 
 
+def _is_trusted_proxy(client_host: str | None) -> bool:
+    if not client_host:
+        return False
+
+    try:
+        client_ip = ip_address(client_host)
+    except ValueError:
+        return False
+
+    for network_value in get_settings().trusted_proxy_networks():
+        try:
+            if client_ip in ip_network(network_value, strict=False):
+                return True
+        except ValueError:
+            continue
+    return False
+
+
+def _first_forwarded_ip(value: str | None) -> str | None:
+    if not value:
+        return None
+    for candidate in value.split(","):
+        candidate = candidate.strip()
+        try:
+            return str(ip_address(candidate))
+        except ValueError:
+            continue
+    return None
+
+
+def client_origin_from_request(request: Request) -> str:
+    direct_host = request.client.host if request.client else None
+    if not _is_trusted_proxy(direct_host):
+        return direct_host or "unknown"
+
+    forwarded_for = _first_forwarded_ip(request.headers.get("X-Forwarded-For"))
+    if forwarded_for:
+        return forwarded_for
+
+    real_ip = _first_forwarded_ip(request.headers.get("X-Real-IP"))
+    if real_ip:
+        return real_ip
+
+    return direct_host or "unknown"
+
+
 def persist_audit_event(event: str, occurred_at: datetime, fields: dict[str, Any]) -> None:
     settings = get_settings()
     if not settings.audit_database_enabled:
@@ -125,7 +172,7 @@ class AuditMiddleware(BaseHTTPMiddleware):
         request_token = AUDIT_REQUEST.set(
             {
                 "correlation_id": correlation_id,
-                "origin": request.client.host if request.client else "unknown",
+                "origin": client_origin_from_request(request),
                 "path": request.url.path,
             }
         )

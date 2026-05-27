@@ -2022,10 +2022,10 @@ function LogsView({ token, setMessage }) {
               <th>Data/hora</th>
               <th>Usuario AD</th>
               <th>Origem</th>
-              <th>Acao</th>
-              <th>Modo</th>
               <th>Alvo</th>
+              <th>Acao</th>
               <th>Grupo</th>
+              <th>Modo</th>
               <th>Justificativa</th>
             </tr>
           </thead>
@@ -2035,10 +2035,10 @@ function LogsView({ token, setMessage }) {
                 <td>{displayValue(row.occurred_at)}</td>
                 <td>{row.operator}</td>
                 <td>{row.origin}</td>
-                <td>{row.action}</td>
-                <td>{row.mode}</td>
                 <td className="clip-cell" title={row.target}>{row.target}</td>
+                <td>{row.action}</td>
                 <td className="clip-cell" title={row.group}>{row.group}</td>
+                <td>{row.mode}</td>
                 <td className="clip-cell" title={row.reason}>{row.reason}</td>
               </tr>
             ))}

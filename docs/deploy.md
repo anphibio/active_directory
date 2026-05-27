@@ -62,6 +62,7 @@ APP_ENV=production
 APP_PORT=8080
 APP_BASE_URL=https://admanager.seudominio.gov.br
 CORS_ALLOWED_ORIGINS=https://admanager.seudominio.gov.br
+TRUSTED_PROXY_CIDRS=10.10.20.15/32
 
 AD_DOMAIN=tce.hml
 AD_BASE_DN=DC=tce,DC=hml
@@ -238,6 +239,28 @@ A regra esperada e:
 - `/metrics` fica restrito a rede interna ou Prometheus.
 
 O `APP_BASE_URL` e o `CORS_ALLOWED_ORIGINS` devem usar a URL HTTPS final, nao `localhost`.
+
+Para registrar o IP real da estacao do operador nos logs, o Nginx deve enviar:
+
+```nginx
+proxy_set_header X-Real-IP $remote_addr;
+proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+proxy_set_header X-Forwarded-Proto https;
+```
+
+Na API, configure `TRUSTED_PROXY_CIDRS` com a rede ou IP do proxy confiavel. A API so usa
+`X-Forwarded-For` ou `X-Real-IP` quando a conexao direta vem dessa rede. Se uma chamada chegar
+diretamente de outro IP, esses headers sao ignorados para evitar falsificacao da origem.
+
+Exemplos:
+
+```env
+TRUSTED_PROXY_CIDRS=172.19.0.0/16
+TRUSTED_PROXY_CIDRS=10.10.20.15/32
+```
+
+Prefira o IP especifico do Nginx com `/32` quando ele for fixo. Use uma rede inteira apenas quando a
+API nao estiver exposta diretamente fora dessa rede.
 
 ## Atualizar Uma Versao Em Producao
 

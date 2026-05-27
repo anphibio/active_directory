@@ -69,6 +69,27 @@ curl "http://localhost:8080/audit/events?start=2026-05-19T00:00:00-03:00&end=202
   -H "Authorization: Bearer $ACCESS_TOKEN"
 ```
 
+## IP De Origem Atras De Proxy
+
+A coluna `Origem` usa o IP calculado pela API no momento da requisicao.
+
+Quando a aplicacao estiver atras de Nginx ou outro proxy reverso, configure o proxy para enviar:
+
+```nginx
+proxy_set_header X-Real-IP $remote_addr;
+proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+```
+
+E configure a API para confiar somente na rede/IP do proxy:
+
+```env
+TRUSTED_PROXY_CIDRS=172.19.0.0/16
+```
+
+Com isso, a API usa o primeiro IP valido de `X-Forwarded-For` como origem real do operador. Se a
+requisicao chegar diretamente de um cliente fora de `TRUSTED_PROXY_CIDRS`, os headers sao ignorados
+e a origem registrada sera o IP direto da conexao.
+
 ## Tabela
 
 Campos principais:
